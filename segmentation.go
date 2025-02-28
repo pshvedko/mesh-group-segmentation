@@ -42,7 +42,7 @@ func NewDriver[T Item](loader Loader[T], db *sqlx.DB) (Driver[T], error) {
 }
 
 type Getter[T Item] interface {
-	Get(context.Context, url.URL) ([]T, error)
+	Get(context.Context, string) ([]T, error)
 }
 
 type Decoder[T Item] func(io.Reader) ([]T, error)
@@ -57,7 +57,7 @@ type Get[T Item] struct {
 	UserAgent string
 }
 
-func (g *Get[T]) Get(ctx context.Context, URL url.URL) ([]T, error) {
+func (g *Get[T]) Get(ctx context.Context, URL string) ([]T, error) {
 	req, err := g.NewRequestWithContext(ctx, URL)
 	if err != nil {
 		return nil, err
@@ -70,8 +70,8 @@ func (g *Get[T]) Get(ctx context.Context, URL url.URL) ([]T, error) {
 	return g.Decode(res.Body)
 }
 
-func (g *Get[T]) NewRequestWithContext(ctx context.Context, URL url.URL) (*http.Request, error) {
-	r, err := http.NewRequestWithContext(ctx, http.MethodGet, URL.String(), &bytes.Buffer{})
+func (g *Get[T]) NewRequestWithContext(ctx context.Context, URL string) (*http.Request, error) {
+	r, err := http.NewRequestWithContext(ctx, http.MethodGet, URL, &bytes.Buffer{})
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func NewGetter[T Item](agent string, timeout time.Duration, decoder Decoder[T]) 
 }
 
 type Pager interface {
-	Page(size int) url.URL
+	Page(size int) string
 }
 
 type Load[T Item] struct {
@@ -107,14 +107,14 @@ type Page struct {
 	Start  int
 }
 
-func (p *Page) Page(size int) url.URL {
+func (p *Page) Page(size int) string {
 	u := p.URL
 	q := u.Query()
 	q.Set(p.Offset, strconv.Itoa(p.Start))
 	q.Set(p.Limit, strconv.Itoa(size))
 	u.RawQuery = q.Encode()
 	p.Start += size
-	return u
+	return u.String()
 }
 
 func (l *Load[T]) Load(ctx context.Context, items []T) (int, error) {

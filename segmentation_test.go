@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -56,6 +57,40 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(objects)
 }
 
+type G[T Item] struct {
+	Getter[T]
+}
+
+func (g G[T]) Get(ctx context.Context, URL string) ([]T, error) {
+	items, err := g.Getter.Get(ctx, URL)
+	switch err {
+	case nil:
+		slog.Info(URL, "len", len(items))
+	default:
+		slog.Error(URL, "err", err)
+	}
+	return items, err
+}
+
+type D[T Item] struct {
+	Driver[T]
+}
+
+func (d D[T]) Load(ctx context.Context, items []T) (int, error) {
+	return d.Driver.Load(ctx, items)
+}
+
+func (d D[T]) Save(ctx context.Context, item T) error {
+	err := d.Driver.Save(ctx, item)
+	switch err {
+	case nil:
+		slog.Info("+++", "item", item)
+	default:
+		slog.Error("---", "item", item, "err", err)
+	}
+	return err
+}
+
 func ExampleNewImporter() {
 	s := httptest.NewServer(Handler{})
 	defer s.Close()
@@ -85,13 +120,18 @@ func ExampleNewImporter() {
 		return
 	}
 
-	loader, err := NewLoader(cfg.Conn.URL(), "offset", "limit", cfg.Conn.Interval, getter)
+	loader, err := NewLoader(cfg.Conn.URL(), "offset", "limit", cfg.Conn.Interval, G[Object]{Getter: getter})
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	importer, err := NewImporter(loader, &sqlx.DB{}, cfg.ImportBatchSize)
+	driver, err := NewDriver(loader, &sqlx.DB{})
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	importer, err := New(D[Object]{Driver: Driver[Object](driver)}, cfg.ImportBatchSize)
 	if err != nil {
 		fmt.Println(err)
 		return
