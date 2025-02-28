@@ -90,7 +90,7 @@ func NewGetter[T Item](agent string, timeout time.Duration, decoder Decoder[T]) 
 }
 
 type Pager interface {
-	Page(size int) string
+	Page(size int) (string, error)
 }
 
 type Load[T Item] struct {
@@ -107,24 +107,28 @@ type Page struct {
 	Start  int
 }
 
-func (p *Page) Page(size int) string {
+func (p *Page) Page(size int) (string, error) {
 	u := p.URL
 	q := u.Query()
 	q.Set(p.Offset, strconv.Itoa(p.Start))
 	q.Set(p.Limit, strconv.Itoa(size))
 	u.RawQuery = q.Encode()
 	p.Start += size
-	return u.String()
+	return u.String(), nil
 }
 
 func (l *Load[T]) Load(ctx context.Context, items []T) (int, error) {
+	page, err := l.Page(len(items))
+	if err != nil {
+		return 0, err
+	}
 	select {
 	case <-ctx.Done():
 		return 0, ctx.Err()
 	case <-time.After(l.Duration + time.Until(l.Time)):
 		l.Time = time.Now()
 	}
-	loads, err := l.Get(ctx, l.Page(len(items)))
+	loads, err := l.Get(ctx, page)
 	if err != nil {
 		return 0, err
 	}
