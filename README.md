@@ -1,16 +1,3 @@
-```
-                          Ohloh Line Count Summary                          
-
-Language          Files       Code    Comment  Comment %      Blank      Total
-----------------  -----  ---------  ---------  ---------  ---------  ---------
-golang               12        694        121      14.8%        169        984
-ampl                  1         25          0       0.0%          3         28
-sql                   1          7          0       0.0%          0          7
-----------------  -----  ---------  ---------  ---------  ---------  ---------
-Total                14        726        121      14.3%        172       1019
-
-```
-
 ## MESH GROUP Golang тестовое задание
 
 Требуется разработать go lang модуль (golang best practices)  
