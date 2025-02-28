@@ -89,14 +89,32 @@ func NewGetter[T Item](agent string, timeout time.Duration, decoder Decoder[T]) 
 	}, nil
 }
 
+type Pager interface {
+	Page(size int) url.URL
+}
+
 type Load[T Item] struct {
 	Getter[T]
 	time.Duration
 	time.Time
+	Pager
+}
+
+type Page struct {
 	url.URL
 	Offset string
 	Limit  string
 	Start  int
+}
+
+func (p *Page) Page(size int) url.URL {
+	u := p.URL
+	q := u.Query()
+	q.Set(p.Offset, strconv.Itoa(p.Start))
+	q.Set(p.Limit, strconv.Itoa(size))
+	u.RawQuery = q.Encode()
+	p.Start += size
+	return u
 }
 
 func (l *Load[T]) Load(ctx context.Context, items []T) (int, error) {
@@ -113,24 +131,21 @@ func (l *Load[T]) Load(ctx context.Context, items []T) (int, error) {
 	return copy(items, loads), nil
 }
 
-func (l *Load[T]) Page(size int) url.URL {
-	u := l.URL
-	q := u.Query()
-	q.Set(l.Offset, strconv.Itoa(l.Start))
-	q.Set(l.Limit, strconv.Itoa(size))
-	u.RawQuery = q.Encode()
-	l.Start += size
-	return u
-}
-
 func NewLoader[T Item](URL url.URL, offset, limit string, interval time.Duration, getter Getter[T]) (Loader[T], error) {
 	return &Load[T]{
+		Pager:    NewPager(URL, offset, limit),
 		Getter:   getter,
-		URL:      URL,
-		Offset:   offset,
-		Limit:    limit,
 		Duration: interval,
 	}, nil
+}
+
+func NewPager(URL url.URL, offset string, limit string) Pager {
+	return &Page{
+		URL:    URL,
+		Offset: offset,
+		Limit:  limit,
+		Start:  0,
+	}
 }
 
 type Import[T Item] struct {
