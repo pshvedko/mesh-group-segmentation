@@ -7,8 +7,11 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -77,10 +80,58 @@ func main() {
 	m.Flags().BoolVar(&down, "down", false, "downgrade")
 	c.AddCommand(m)
 
+	var addr string
+
+	w := &cobra.Command{
+		Use:   "demo",
+		Short: "Demo service",
+		RunE: func(*cobra.Command, []string) error {
+			return demo(ctx, addr)
+		},
+	}
+
+	w.Flags().StringVar(&addr, "addr", ":8080", "demo")
+	c.AddCommand(w)
+
 	err = c.Execute()
 	if err != nil {
 		os.Exit(1)
 	}
+}
+
+func demo(ctx context.Context, addr string) error {
+	n := 1000
+	h := http.NewServeMux()
+	h.HandleFunc("/demo", func(w http.ResponseWriter, r *http.Request) {
+		offset, _ := strconv.Atoi(r.FormValue("p_offset"))
+		if offset >= n {
+			offset = n
+		}
+		limit, _ := strconv.Atoi(r.FormValue("p_limit"))
+		limit = min(limit, n-offset)
+		objects := make([]model.Segmentation, 0, limit)
+		for limit > 0 {
+			objects = append(objects, model.Segmentation{
+				AddressSapId: strconv.Itoa(offset % 10),
+				AdrSegment:   strconv.Itoa(offset),
+				SegmentId:    int64(offset),
+			})
+			offset++
+			limit--
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(objects)
+	})
+	w := http.Server{
+		Addr:    addr,
+		Handler: h,
+		BaseContext: func(net.Listener) context.Context {
+			return ctx
+		},
+	}
+	context.AfterFunc(ctx, func() { _ = w.Shutdown(context.TODO()) })
+	return w.ListenAndServe()
 }
 
 func prepare(_ context.Context, cfg config.Config) error {
