@@ -157,7 +157,7 @@ func (i *Import[T]) Import(ctx context.Context) error {
 	for {
 		items, err := i.Load(ctx, i.Size)
 		if err != nil || len(items) == 0 {
-			return nil
+			return err
 		}
 		for _, item := range items {
 			err = i.Save(ctx, item)
