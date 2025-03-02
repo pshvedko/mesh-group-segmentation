@@ -173,6 +173,7 @@ func (i *Import[T]) Import(ctx context.Context) error {
 				return err
 			}
 		}
+		clear(items[:n])
 	}
 }
 
