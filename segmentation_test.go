@@ -76,8 +76,8 @@ type D[T Item] struct {
 	Driver[T]
 }
 
-func (d D[T]) Load(ctx context.Context, items []T) (int, error) {
-	return d.Driver.Load(ctx, items)
+func (d D[T]) Load(ctx context.Context, size int) ([]T, error) {
+	return d.Driver.Load(ctx, size)
 }
 
 func (d D[T]) Save(ctx context.Context, item T) error {

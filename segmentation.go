@@ -17,7 +17,7 @@ type Item interface {
 }
 
 type Loader[T Item] interface {
-	Load(context.Context, []T) (int, error)
+	Load(context.Context, int) ([]T, error)
 }
 
 type Driver[T Item] interface {
@@ -117,22 +117,18 @@ func (p *Page) Page(size int) (string, error) {
 	return u.String(), nil
 }
 
-func (l *Load[T]) Load(ctx context.Context, items []T) (int, error) {
-	page, err := l.Page(len(items))
+func (l *Load[T]) Load(ctx context.Context, size int) ([]T, error) {
+	page, err := l.Page(size)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	select {
 	case <-ctx.Done():
-		return 0, ctx.Err()
+		return nil, ctx.Err()
 	case <-time.After(l.Duration + time.Until(l.Time)):
 		l.Time = time.Now()
 	}
-	loads, err := l.Get(ctx, page)
-	if err != nil {
-		return 0, err
-	}
-	return copy(items, loads), nil
+	return l.Get(ctx, page)
 }
 
 func NewLoader[T Item](URL url.URL, offset, limit string, interval time.Duration, getter Getter[T]) (Loader[T], error) {
@@ -158,22 +154,17 @@ type Import[T Item] struct {
 }
 
 func (i *Import[T]) Import(ctx context.Context) error {
-	items := make([]T, i.Size)
 	for {
-		n, err := i.Load(ctx, items)
-		if err != nil {
-			return err
-		}
-		if n == 0 {
+		items, err := i.Load(ctx, i.Size)
+		if err != nil || len(items) == 0 {
 			return nil
 		}
-		for _, item := range items[:n] {
+		for _, item := range items {
 			err = i.Save(ctx, item)
 			if err != nil {
 				return err
 			}
 		}
-		clear(items[:n])
 	}
 }
 
