@@ -17,8 +17,6 @@ import (
 	"github.com/pshvedko/sap_segmentation/internal/config"
 )
 
-const MaxObject = 30
-
 type Object struct {
 	ID int `json:"id"`
 }
@@ -28,9 +26,11 @@ func (o Object) Put(context.Context, *sqlx.DB) error {
 	return err
 }
 
-type Handler struct{}
+type Handler struct {
+	N int
+}
 
-func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a, ok := r.Header["Authorization"]
 	if !ok || len(a) != 1 || a[0] != "Basic MTox" {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -38,12 +38,12 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	offset, _ := strconv.Atoi(r.FormValue("offset"))
-	if offset >= MaxObject {
-		offset = MaxObject
+	if offset >= h.N {
+		offset = h.N
 	}
 
 	limit, _ := strconv.Atoi(r.FormValue("limit"))
-	limit = min(limit, MaxObject-offset)
+	limit = min(limit, h.N-offset)
 	objects := make([]Object, 0, limit)
 
 	for limit > 0 {
@@ -92,7 +92,8 @@ func (d D[T]) Save(ctx context.Context, item T) error {
 }
 
 func ExampleNewImporter() {
-	s := httptest.NewServer(Handler{})
+	h := Handler{N: 29}
+	s := httptest.NewServer(&h)
 	defer s.Close()
 
 	_ = os.Setenv("TEST_CONN_URI", s.URL)
@@ -136,6 +137,14 @@ func ExampleNewImporter() {
 		fmt.Println(err)
 		return
 	}
+
+	err = importer.Import(context.TODO())
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	h.N++
 
 	err = importer.Import(context.TODO())
 	if err != nil {

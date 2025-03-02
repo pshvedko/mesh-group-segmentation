@@ -18,6 +18,7 @@ type Item interface {
 
 type Loader[T Item] interface {
 	Load(context.Context, int) ([]T, error)
+	Shift(int)
 }
 
 type Driver[T Item] interface {
@@ -90,7 +91,8 @@ func NewGetter[T Item](agent string, timeout time.Duration, decoder Decoder[T]) 
 }
 
 type Pager interface {
-	Page(size int) (string, error)
+	Page(int) (string, error)
+	Shift(int)
 }
 
 type Load[T Item] struct {
@@ -107,13 +109,16 @@ type Page struct {
 	Start  int
 }
 
+func (p *Page) Shift(shift int) {
+	p.Start += shift
+}
+
 func (p *Page) Page(size int) (string, error) {
 	u := p.URL
 	q := u.Query()
 	q.Set(p.Offset, strconv.Itoa(p.Start))
 	q.Set(p.Limit, strconv.Itoa(size))
 	u.RawQuery = q.Encode()
-	p.Start += size
 	return u.String(), nil
 }
 
@@ -164,18 +169,23 @@ func (i *Import[T]) Import(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+			i.Shift(1)
 		}
 	}
 }
 
-func New[T Item](driver Driver[T], size int) (*Import[T], error) {
+type Importer[T Item] interface {
+	Import(context.Context) error
+}
+
+func New[T Item](driver Driver[T], size int) (Importer[T], error) {
 	return &Import[T]{
 		Driver: driver,
 		Size:   size,
 	}, nil
 }
 
-func NewImporter[T Item](loader Loader[T], db *sqlx.DB, size int) (*Import[T], error) {
+func NewImporter[T Item](loader Loader[T], db *sqlx.DB, size int) (Importer[T], error) {
 	driver, err := NewDriver(loader, db)
 	if err != nil {
 		return nil, nil
