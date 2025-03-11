@@ -7,7 +7,7 @@ import (
 )
 
 type Segmentation struct {
-	Id           int64  `json:"id" db:"id"`
+	Id           int64  `json:"id,omitempty" db:"id"`
 	AddressSapId string `json:"address_sap_id,omitempty" db:"address_sap_id"`
 	AdrSegment   string `json:"adr_segment,omitempty" db:"adr_segment"`
 	SegmentId    int64  `json:"segment_id,omitempty" db:"segment_id"`

@@ -123,16 +123,18 @@ func main() {
 	c.AddCommand(m)
 
 	var addr string
+	var size int
 
 	w := &cobra.Command{
 		Use:   "demo",
 		Short: "Demo service",
 		RunE: func(*cobra.Command, []string) error {
-			return demo(ctx, addr)
+			return demo(ctx, addr, size)
 		},
 	}
 
-	w.Flags().StringVar(&addr, "addr", ":8080", "demo")
+	w.Flags().StringVarP(&addr, "address", "a", ":8080", "address")
+	w.Flags().IntVarP(&size, "count", "n", 1000, "count")
 	c.AddCommand(w)
 
 	err = c.Execute()
@@ -141,16 +143,15 @@ func main() {
 	}
 }
 
-func demo(ctx context.Context, addr string) error {
-	n := 1000
+func demo(ctx context.Context, addr string, size int) error {
 	h := http.NewServeMux()
 	h.HandleFunc("/demo", func(w http.ResponseWriter, r *http.Request) {
 		offset, _ := strconv.Atoi(r.FormValue("p_offset"))
-		if offset >= n {
-			offset = n
+		if offset >= size {
+			offset = size
 		}
 		limit, _ := strconv.Atoi(r.FormValue("p_limit"))
-		limit = min(limit, n-offset)
+		limit = min(limit, size-offset)
 		objects := make([]model.Segmentation, 0, limit)
 		for limit > 0 {
 			objects = append(objects, model.Segmentation{
@@ -223,7 +224,7 @@ func run(ctx context.Context, cfg config.Config) error {
 	return importer.
 		WithGetter(sap_segmentation.LogGetter[model.Segmentation]).
 		WithDriver(sap_segmentation.LogDriver[model.Segmentation]).
-		Import(ctx)
+		ImportWithBuffer(ctx, cfg.ImportBatchSize)
 }
 
 //go:embed migration

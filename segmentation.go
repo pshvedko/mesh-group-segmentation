@@ -164,6 +164,7 @@ func NewLoader[T Putter[T]](interval time.Duration, URL url.URL, offset, limit s
 
 type Importer[T Putter[T]] interface {
 	Import(context.Context) error
+	ImportWithBuffer(context.Context, int) error
 	WithLoader(...func(Loader[T]) Loader[T]) Importer[T]
 	WithDriver(...func(Driver[T]) Driver[T]) Importer[T]
 	WithGetter(...func(Getter[T]) Getter[T]) Importer[T]
@@ -199,7 +200,11 @@ func (i *Import[T]) UseDriver(wrappers ...func(Driver[T]) Driver[T]) {
 }
 
 func (i *Import[T]) Import(ctx context.Context) error {
-	c := make(chan T)
+	return i.ImportWithBuffer(ctx, 0)
+}
+
+func (i *Import[T]) ImportWithBuffer(ctx context.Context, length int) error {
+	c := make(chan T, length)
 	e := make(chan error, 1)
 
 	defer func() {
