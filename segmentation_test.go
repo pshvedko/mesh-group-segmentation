@@ -2,16 +2,12 @@ package sap_segmentation
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log/slog"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"strconv"
-
 	"github.com/jmoiron/sqlx"
 	"github.com/kelseyhightower/envconfig"
+	"log/slog"
+	"net/http/httptest"
+	"os"
 
 	"github.com/pshvedko/sap_segmentation/internal/config"
 	"github.com/pshvedko/sap_segmentation/internal/stream"
@@ -26,40 +22,11 @@ func (o Object) Put(context.Context, *sqlx.DB) (Object, error) {
 	return o, err
 }
 
-type Handler struct {
-	N int
-}
-
-func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	a, ok := r.Header["Authorization"]
-	if !ok || len(a) != 1 || a[0] != "Basic MTox" {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
-	offset, _ := strconv.Atoi(r.FormValue("offset"))
-	if offset >= h.N {
-		offset = h.N
-	}
-
-	limit, _ := strconv.Atoi(r.FormValue("limit"))
-	limit = min(limit, h.N-offset)
-	objects := make([]Object, 0, limit)
-
-	for limit > 0 {
-		objects = append(objects, Object{ID: offset})
-		offset++
-		limit--
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(objects)
-}
-
 func ExampleNewImporter() {
-	h := Handler{N: 30}
-	s := httptest.NewServer(&h)
+	h := stream.NewHandlerWithAuthorization(30, "Basic MTox", func(offset int) Object {
+		return Object{ID: offset}
+	})
+	s := httptest.NewServer(h)
 	defer s.Close()
 
 	_ = os.Setenv("TEST_CONN_URI", s.URL)

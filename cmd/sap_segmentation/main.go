@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"embed"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net"
@@ -144,28 +143,13 @@ func main() {
 }
 
 func demo(ctx context.Context, addr string, size int) error {
-	h := http.NewServeMux()
-	h.HandleFunc("/demo", func(w http.ResponseWriter, r *http.Request) {
-		offset, _ := strconv.Atoi(r.FormValue("p_offset"))
-		if offset >= size {
-			offset = size
+	h := stream.NewHandler(size, func(offset int) model.Segmentation {
+		return model.Segmentation{
+			AddressSapId: strconv.Itoa(offset % 10),
+			AdrSegment:   strconv.Itoa(offset),
+			SegmentId:    int64(offset),
 		}
-		limit, _ := strconv.Atoi(r.FormValue("p_limit"))
-		limit = min(limit, size-offset)
-		objects := make([]model.Segmentation, 0, limit)
-		for limit > 0 {
-			objects = append(objects, model.Segmentation{
-				AddressSapId: strconv.Itoa(offset % 10),
-				AdrSegment:   strconv.Itoa(offset),
-				SegmentId:    int64(offset),
-			})
-			offset++
-			limit--
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(objects)
-	})
+	}).WithOffset("p_offset").WithLimit("p_limit")
 	w := http.Server{
 		Addr:        addr,
 		Handler:     h,
