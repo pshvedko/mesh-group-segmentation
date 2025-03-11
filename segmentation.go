@@ -117,6 +117,15 @@ func (p *Page) Page(size int) (string, error) {
 	return u.String(), nil
 }
 
+func NewPager(URL url.URL, offset string, limit string) Pager {
+	return &Page{
+		URL:    URL,
+		Offset: offset,
+		Limit:  limit,
+		Start:  0,
+	}
+}
+
 func (l *Load[T]) Load(ctx context.Context, size int, items chan<- T) (int, error) {
 	page, err := l.Page(size)
 	if err != nil {
@@ -137,15 +146,6 @@ func NewLoader[T Item](interval time.Duration, URL url.URL, offset, limit string
 		Getter:   getter,
 		Duration: interval,
 	}, nil
-}
-
-func NewPager(URL url.URL, offset string, limit string) *Page {
-	return &Page{
-		URL:    URL,
-		Offset: offset,
-		Limit:  limit,
-		Start:  0,
-	}
 }
 
 type Import[T Item] struct {

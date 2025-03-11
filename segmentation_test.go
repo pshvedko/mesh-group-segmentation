@@ -66,6 +66,10 @@ func (g G[T]) Get(ctx context.Context, URL string, items chan<- T) (int, error) 
 	return g.Getter.Get(ctx, URL, items)
 }
 
+func LogGetter[T Item](getter Getter[T]) Getter[T] {
+	return G[T]{Getter: getter}
+}
+
 type D[T Item] struct {
 	Driver[T]
 }
@@ -83,6 +87,10 @@ func (d D[T]) Save(ctx context.Context, item T) error {
 		slog.Error(fmt.Sprintf("%+v", item), "err", err)
 	}
 	return err
+}
+
+func LogDriver[T Item](driver Driver[T]) Driver[T] {
+	return D[T]{Driver: driver}
 }
 
 func ExampleNewImporter() {
@@ -108,7 +116,7 @@ func ExampleNewImporter() {
 		return
 	}
 
-	loader, err := NewLoader(cfg.Conn.Interval, cfg.Conn.URL(), "offset", "limit", G[Object]{Getter: getter})
+	loader, err := NewLoader(cfg.Conn.Interval, cfg.Conn.URL(), "offset", "limit", LogGetter(getter))
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -119,7 +127,7 @@ func ExampleNewImporter() {
 		fmt.Println(err)
 	}
 
-	importer, err := New(D[Object]{Driver: Driver[Object](driver)}, cfg.ImportBatchSize)
+	importer, err := New(LogDriver(driver), cfg.ImportBatchSize)
 	if err != nil {
 		fmt.Println(err)
 		return
