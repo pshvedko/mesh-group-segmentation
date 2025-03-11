@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
+	"github.com/pshvedko/sap_segmentation/internal/stream"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -61,38 +61,32 @@ type G[T Item] struct {
 	Getter[T]
 }
 
-func (g G[T]) Get(ctx context.Context, URL string) ([]T, error) {
-	items, err := g.Getter.Get(ctx, URL)
-	switch err {
-	case nil:
-		slog.Info(URL, "len", len(items))
-	default:
-		slog.Error(URL, "err", err)
-	}
-	return items, err
+func (g G[T]) Get(ctx context.Context, URL string, items chan<- T) (int, error) {
+	slog.Info(URL)
+	return g.Getter.Get(ctx, URL, items)
 }
 
 type D[T Item] struct {
 	Driver[T]
 }
 
-func (d D[T]) Load(ctx context.Context, size int) ([]T, error) {
-	return d.Driver.Load(ctx, size)
+func (d D[T]) Load(ctx context.Context, size int, items chan<- T) (int, error) {
+	return d.Driver.Load(ctx, size, items)
 }
 
 func (d D[T]) Save(ctx context.Context, item T) error {
 	err := d.Driver.Save(ctx, item)
 	switch err {
 	case nil:
-		slog.Info("+++", "item", item)
+		slog.Info(fmt.Sprintf("%+v", item))
 	default:
-		slog.Error("---", "item", item, "err", err)
+		slog.Error(fmt.Sprintf("%+v", item), "err", err)
 	}
 	return err
 }
 
 func ExampleNewImporter() {
-	h := Handler{N: 29}
+	h := Handler{N: 30}
 	s := httptest.NewServer(&h)
 	defer s.Close()
 
@@ -108,20 +102,13 @@ func ExampleNewImporter() {
 		return
 	}
 
-	getter, err := NewGetter(cfg.Conn.UserAgent, cfg.Conn.Timeout, func(r io.Reader) ([]Object, error) {
-		var items []Object
-		err := json.NewDecoder(r).Decode(&items)
-		if err != nil {
-			return nil, err
-		}
-		return items, nil
-	})
+	getter, err := NewGetter(cfg.Conn.UserAgent, cfg.Conn.Timeout, stream.Decode[Object])
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	loader, err := NewLoader(cfg.Conn.URL(), "offset", "limit", cfg.Conn.Interval, G[Object]{Getter: getter})
+	loader, err := NewLoader(cfg.Conn.Interval, cfg.Conn.URL(), "offset", "limit", G[Object]{Getter: getter})
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -137,14 +124,6 @@ func ExampleNewImporter() {
 		fmt.Println(err)
 		return
 	}
-
-	err = importer.Import(context.TODO())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	h.N++
 
 	err = importer.Import(context.TODO())
 	if err != nil {

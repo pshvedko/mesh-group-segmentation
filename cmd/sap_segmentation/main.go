@@ -5,13 +5,13 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -29,6 +29,7 @@ import (
 	"github.com/pshvedko/sap_segmentation"
 	"github.com/pshvedko/sap_segmentation/internal/config"
 	"github.com/pshvedko/sap_segmentation/internal/logfile"
+	"github.com/pshvedko/sap_segmentation/internal/stream"
 	"github.com/pshvedko/sap_segmentation/model"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -124,13 +125,18 @@ func demo(ctx context.Context, addr string) error {
 		_ = json.NewEncoder(w).Encode(objects)
 	})
 	w := http.Server{
-		Addr:    addr,
-		Handler: h,
-		BaseContext: func(net.Listener) context.Context {
-			return ctx
-		},
+		Addr:        addr,
+		Handler:     h,
+		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
-	context.AfterFunc(ctx, func() { _ = w.Shutdown(context.TODO()) })
+	// Make sure the program doesn't exit and waits instead for Shutdown to return.
+	g := sync.WaitGroup{}
+	defer g.Wait()
+	context.AfterFunc(ctx, func() {
+		g.Add(1)
+		_ = w.Shutdown(context.TODO())
+		g.Done()
+	})
 	return w.ListenAndServe()
 }
 
@@ -158,21 +164,12 @@ func run(ctx context.Context, cfg config.Config) error {
 	}
 	defer func() { _ = db.Close() }()
 
-	getter, err := sap_segmentation.NewGetter(cfg.Conn.UserAgent, cfg.Conn.Timeout,
-		func(r io.Reader) ([]model.Segmentation, error) {
-			var items []model.Segmentation
-			err := json.NewDecoder(r).Decode(&items)
-			if err != nil {
-				return nil, err
-			}
-			return items, nil
-		},
-	)
+	getter, err := sap_segmentation.NewGetter(cfg.Conn.UserAgent, cfg.Conn.Timeout, stream.Decode[model.Segmentation])
 	if err != nil {
 		return err
 	}
 
-	loader, err := sap_segmentation.NewLoader(cfg.Conn.URL(), "p_offset", "p_limit", cfg.Conn.Interval, getter)
+	loader, err := sap_segmentation.NewLoader(cfg.Conn.Interval, cfg.Conn.URL(), "p_offset", "p_limit", getter)
 	if err != nil {
 		return err
 	}

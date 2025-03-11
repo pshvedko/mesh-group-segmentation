@@ -17,8 +17,7 @@ type Item interface {
 }
 
 type Loader[T Item] interface {
-	Load(context.Context, int) ([]T, error)
-	Shift(int)
+	Load(context.Context, int, chan<- T) (int, error)
 }
 
 type Driver[T Item] interface {
@@ -43,13 +42,13 @@ func NewDriver[T Item](loader Loader[T], db *sqlx.DB) (Driver[T], error) {
 }
 
 type Getter[T Item] interface {
-	Get(context.Context, string) ([]T, error)
+	Get(context.Context, string, chan<- T) (int, error)
 }
 
-type Decoder[T Item] func(io.Reader) ([]T, error)
+type Decoder[T Item] func(context.Context, io.Reader, chan<- T) (int, error)
 
-func (f Decoder[T]) Decode(r io.ReadCloser) ([]T, error) {
-	return f(r)
+func (f Decoder[T]) Decode(ctx context.Context, r io.Reader, c chan<- T) (int, error) {
+	return f(ctx, r, c)
 }
 
 type Get[T Item] struct {
@@ -58,17 +57,17 @@ type Get[T Item] struct {
 	UserAgent string
 }
 
-func (g *Get[T]) Get(ctx context.Context, URL string) ([]T, error) {
+func (g *Get[T]) Get(ctx context.Context, URL string, items chan<- T) (int, error) {
 	req, err := g.NewRequestWithContext(ctx, URL)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	res, err := g.Do(req)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	defer func() { _ = res.Body.Close() }()
-	return g.Decode(res.Body)
+	return g.Decode(ctx, res.Body, items)
 }
 
 func (g *Get[T]) NewRequestWithContext(ctx context.Context, URL string) (*http.Request, error) {
@@ -92,7 +91,6 @@ func NewGetter[T Item](agent string, timeout time.Duration, decoder Decoder[T]) 
 
 type Pager interface {
 	Page(int) (string, error)
-	Shift(int)
 }
 
 type Load[T Item] struct {
@@ -109,34 +107,31 @@ type Page struct {
 	Start  int
 }
 
-func (p *Page) Shift(shift int) {
-	p.Start += shift
-}
-
 func (p *Page) Page(size int) (string, error) {
 	u := p.URL
 	q := u.Query()
 	q.Set(p.Offset, strconv.Itoa(p.Start))
 	q.Set(p.Limit, strconv.Itoa(size))
 	u.RawQuery = q.Encode()
+	p.Start += size
 	return u.String(), nil
 }
 
-func (l *Load[T]) Load(ctx context.Context, size int) ([]T, error) {
+func (l *Load[T]) Load(ctx context.Context, size int, items chan<- T) (int, error) {
 	page, err := l.Page(size)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return 0, ctx.Err()
 	case <-time.After(l.Duration + time.Until(l.Time)):
 		l.Time = time.Now()
 	}
-	return l.Get(ctx, page)
+	return l.Get(ctx, page, items)
 }
 
-func NewLoader[T Item](URL url.URL, offset, limit string, interval time.Duration, getter Getter[T]) (Loader[T], error) {
+func NewLoader[T Item](interval time.Duration, URL url.URL, offset, limit string, getter Getter[T]) (Loader[T], error) {
 	return &Load[T]{
 		Pager:    NewPager(URL, offset, limit),
 		Getter:   getter,
@@ -144,7 +139,7 @@ func NewLoader[T Item](URL url.URL, offset, limit string, interval time.Duration
 	}, nil
 }
 
-func NewPager(URL url.URL, offset string, limit string) Pager {
+func NewPager(URL url.URL, offset string, limit string) *Page {
 	return &Page{
 		URL:    URL,
 		Offset: offset,
@@ -159,19 +154,37 @@ type Import[T Item] struct {
 }
 
 func (i *Import[T]) Import(ctx context.Context) error {
-	for {
-		items, err := i.Load(ctx, i.Size)
-		if err != nil || len(items) == 0 {
+	c := make(chan T)
+	e := make(chan error, 1)
+
+	defer func() {
+		<-c
+		<-e
+	}()
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	go func(ctx context.Context, c chan<- T, e chan<- error) {
+		defer close(c)
+		defer close(e)
+		for {
+			n, err := i.Load(ctx, i.Size, c)
+			if err != nil || n == 0 {
+				e <- err
+				break
+			}
+		}
+	}(ctx, c, e)
+
+	for item := range c {
+		err := i.Save(ctx, item)
+		if err != nil {
 			return err
 		}
-		for _, item := range items {
-			err = i.Save(ctx, item)
-			if err != nil {
-				return err
-			}
-			i.Shift(1)
-		}
 	}
+
+	return <-e
 }
 
 type Importer[T Item] interface {
