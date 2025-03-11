@@ -205,7 +205,7 @@ func run(ctx context.Context, cfg config.Config) error {
 	}
 	defer func() { _ = db.Close() }()
 
-	getter, err := sap_segmentation.NewGetter(cfg.Conn.UserAgent, cfg.Conn.Timeout, stream.Decode[model.Segmentation])
+	getter, err := sap_segmentation.NewGetter(cfg.Conn.UserAgent, cfg.Conn.Timeout, stream.Decode[*model.Segmentation])
 	if err != nil {
 		return err
 	}
@@ -221,8 +221,8 @@ func run(ctx context.Context, cfg config.Config) error {
 	}
 
 	return importer.
-		WithGetter(sap_segmentation.LogGetter[model.Segmentation]).
-		WithDriver(sap_segmentation.LogDriver[model.Segmentation]).
+		WithGetter(sap_segmentation.LogGetter[*model.Segmentation]).
+		WithDriver(sap_segmentation.LogDriver[*model.Segmentation]).
 		Import(ctx)
 }
 
