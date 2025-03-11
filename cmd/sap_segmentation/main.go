@@ -189,18 +189,17 @@ func prepare(_ context.Context, cfg config.Config, level slog.Level) error {
 		slog.SetDefault(
 			slog.New(
 				slogmulti.Fanout(
-					slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}),
-					slog.NewJSONHandler(out, &slog.HandlerOptions{}),
+					slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level}),
+					slog.NewJSONHandler(out, &slog.HandlerOptions{Level: level}),
 				),
 			),
 		)
-		slog.SetLogLoggerLevel(level)
 	}
 	return err
 }
 
 func run(ctx context.Context, cfg config.Config) error {
-	db, err := sqlx.Open("pgx", cfg.DB.DataSourceName("postgres"))
+	db, err := sqlx.Open("pgx", cfg.DB.DSN("postgres"))
 	if err != nil {
 		return err
 	}
@@ -221,14 +220,17 @@ func run(ctx context.Context, cfg config.Config) error {
 		return err
 	}
 
-	return importer.Import(ctx)
+	return importer.
+		WithGetter(sap_segmentation.LogGetter[model.Segmentation]).
+		WithDriver(sap_segmentation.LogDriver[model.Segmentation]).
+		Import(ctx)
 }
 
 //go:embed migration
 var migrationFS embed.FS
 
 func setup(ctx context.Context, cfg config.Config, down bool) error {
-	db, err := sqlx.Open("pgx", cfg.DB.DataSourceName("postgres"))
+	db, err := sqlx.Open("pgx", cfg.DB.DSN("postgres"))
 	if err != nil {
 		return err
 	}

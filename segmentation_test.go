@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -65,6 +66,8 @@ func ExampleNewImporter() {
 	_ = os.Setenv("TEST_CONN_AUTH_LOGIN_PWD", "1:1")
 	_ = os.Setenv("TEST_CONN_INTERVAL", "50ms")
 	_ = os.Setenv("TEST_IMPORT_BATCH_SIZE", "8")
+
+	slog.SetLogLoggerLevel(slog.LevelDebug)
 
 	var cfg config.Config
 	err := envconfig.Process("TEST", &cfg)

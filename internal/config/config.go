@@ -42,7 +42,7 @@ type DataBase struct {
 	Password string `default:"postgres" desc:"password"`
 }
 
-func (db DataBase) DataSourceName(scheme string) string {
+func (db DataBase) DSN(scheme string) string {
 	return fmt.Sprint(&url.URL{
 		Scheme: scheme,
 		User:   url.UserPassword(db.User, db.Password),

@@ -28,7 +28,7 @@ func (d D[T]) Save(ctx context.Context, item T) error {
 	err := d.Driver.Save(ctx, item)
 	switch err {
 	case nil:
-		slog.Info(fmt.Sprintf("%+v", item))
+		slog.Debug(fmt.Sprintf("%+v", item))
 	default:
 		slog.Error(fmt.Sprintf("%+v", item), "err", err)
 	}

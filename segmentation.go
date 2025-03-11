@@ -16,13 +16,10 @@ type Putter interface {
 	Put(context.Context, *sqlx.DB) error
 }
 
-type Loader[T Putter] interface {
-	Load(context.Context, int, chan<- T) (int, error)
-}
-
 type Driver[T Putter] interface {
 	Loader[T]
 	Save(context.Context, T) error
+	UseLoader(...func(Loader[T]) Loader[T])
 }
 
 type Drive[T Putter] struct {
@@ -30,8 +27,14 @@ type Drive[T Putter] struct {
 	*sqlx.DB
 }
 
-func (s *Drive[T]) Save(ctx context.Context, item T) error {
-	return item.Put(ctx, s.DB)
+func (d *Drive[T]) UseLoader(wrappers ...func(Loader[T]) Loader[T]) {
+	for _, wrapper := range wrappers {
+		d.Loader = wrapper(d.Loader)
+	}
+}
+
+func (d *Drive[T]) Save(ctx context.Context, item T) error {
+	return item.Put(ctx, d.DB)
 }
 
 func NewDriver[T Putter](db *sqlx.DB, loader Loader[T]) (Driver[T], error) {
@@ -41,14 +44,14 @@ func NewDriver[T Putter](db *sqlx.DB, loader Loader[T]) (Driver[T], error) {
 	}, nil
 }
 
-type Getter[T Putter] interface {
-	Get(context.Context, url.URL, chan<- T) (int, error)
-}
-
 type Decoder[T Putter] func(context.Context, io.Reader, chan<- T) (int, error)
 
 func (f Decoder[T]) Decode(ctx context.Context, r io.Reader, c chan<- T) (int, error) {
 	return f(ctx, r, c)
+}
+
+type Getter[T Putter] interface {
+	Get(context.Context, url.URL, chan<- T) (int, error)
 }
 
 type Get[T Putter] struct {
@@ -93,13 +96,6 @@ type Pager interface {
 	Page(int) (url.URL, error)
 }
 
-type Load[T Putter] struct {
-	Getter[T]
-	time.Duration
-	time.Time
-	Pager
-}
-
 type Page struct {
 	url.URL
 	Offset string
@@ -126,6 +122,24 @@ func NewPager(URL url.URL, offset string, limit string) Pager {
 	}
 }
 
+type Loader[T Putter] interface {
+	Load(context.Context, int, chan<- T) (int, error)
+	UseGetter(...func(Getter[T]) Getter[T])
+}
+
+type Load[T Putter] struct {
+	Getter[T]
+	time.Duration
+	time.Time
+	Pager
+}
+
+func (l *Load[T]) UseGetter(wrappers ...func(Getter[T]) Getter[T]) {
+	for _, wrapper := range wrappers {
+		l.Getter = wrapper(l.Getter)
+	}
+}
+
 func (l *Load[T]) Load(ctx context.Context, size int, items chan<- T) (int, error) {
 	URL, err := l.Page(size)
 	if err != nil {
@@ -148,9 +162,40 @@ func NewLoader[T Putter](interval time.Duration, URL url.URL, offset, limit stri
 	}, nil
 }
 
+type Importer[T Putter] interface {
+	Import(context.Context) error
+	WithLoader(...func(Loader[T]) Loader[T]) Importer[T]
+	WithDriver(...func(Driver[T]) Driver[T]) Importer[T]
+	WithGetter(...func(Getter[T]) Getter[T]) Importer[T]
+	UseLoader(...func(Loader[T]) Loader[T])
+	UseDriver(...func(Driver[T]) Driver[T])
+	UseGetter(...func(Getter[T]) Getter[T])
+}
+
 type Import[T Putter] struct {
 	Driver[T]
 	Size int
+}
+
+func (i Import[T]) WithLoader(wrappers ...func(Loader[T]) Loader[T]) Importer[T] {
+	i.UseLoader(wrappers...)
+	return &i
+}
+
+func (i Import[T]) WithDriver(wrappers ...func(Driver[T]) Driver[T]) Importer[T] {
+	i.UseDriver(wrappers...)
+	return &i
+}
+
+func (i Import[T]) WithGetter(wrappers ...func(Getter[T]) Getter[T]) Importer[T] {
+	i.UseGetter(wrappers...)
+	return &i
+}
+
+func (i *Import[T]) UseDriver(wrappers ...func(Driver[T]) Driver[T]) {
+	for _, wrapper := range wrappers {
+		i.Driver = wrapper(i.Driver)
+	}
 }
 
 func (i *Import[T]) Import(ctx context.Context) error {
@@ -185,10 +230,6 @@ func (i *Import[T]) Import(ctx context.Context) error {
 	}
 
 	return <-e
-}
-
-type Importer[T Putter] interface {
-	Import(context.Context) error
 }
 
 func New[T Putter](size int, driver Driver[T]) (Importer[T], error) {
