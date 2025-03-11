@@ -2,6 +2,7 @@ package stream
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 )
@@ -21,18 +22,32 @@ func (h Handler[T]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	limit, _ := strconv.Atoi(r.FormValue(h.Limit))
 	limit = min(limit, h.Size-offset)
-	objects := make([]T, 0, limit)
-
-	for limit > 0 {
-		objects = append(objects, h.New(offset))
-		offset++
-		limit--
-	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	_ = json.NewEncoder(w).Encode(objects)
+	_, err := fmt.Fprint(w, json.Delim('['))
+	if err != nil {
+		return
+	}
+
+	j := json.NewEncoder(w)
+	for limit > 0 {
+		err = j.Encode(h.New(offset))
+		if err != nil {
+			return
+		}
+		if limit > 1 {
+			_, err = fmt.Fprint(w, json.Delim(','))
+			if err != nil {
+				return
+			}
+		}
+		offset++
+		limit--
+	}
+
+	_, _ = fmt.Fprint(w, json.Delim(']'))
 }
 
 func (h Handler[T]) WithOffset(offset string) Handler[T] {
