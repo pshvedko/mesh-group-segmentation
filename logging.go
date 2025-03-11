@@ -7,7 +7,7 @@ import (
 	"net/url"
 )
 
-type G[T Putter] struct {
+type G[T Putter[T]] struct {
 	Getter[T]
 }
 
@@ -16,25 +16,25 @@ func (g G[T]) Get(ctx context.Context, URL url.URL, items chan<- T) (int, error)
 	return g.Getter.Get(ctx, URL, items)
 }
 
-func LogGetter[T Putter](getter Getter[T]) Getter[T] {
+func LogGetter[T Putter[T]](getter Getter[T]) Getter[T] {
 	return G[T]{Getter: getter}
 }
 
-type D[T Putter] struct {
+type D[T Putter[T]] struct {
 	Driver[T]
 }
 
-func (d D[T]) Save(ctx context.Context, item T) error {
-	err := d.Driver.Save(ctx, item)
+func (d D[T]) Save(ctx context.Context, item T) (T, error) {
+	item, err := d.Driver.Save(ctx, item)
 	switch err {
 	case nil:
 		slog.Debug(fmt.Sprintf("%+v", item))
 	default:
 		slog.Error(fmt.Sprintf("%+v", item), "err", err)
 	}
-	return err
+	return item, err
 }
 
-func LogDriver[T Putter](driver Driver[T]) Driver[T] {
+func LogDriver[T Putter[T]](driver Driver[T]) Driver[T] {
 	return D[T]{Driver: driver}
 }

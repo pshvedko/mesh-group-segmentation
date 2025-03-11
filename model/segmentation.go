@@ -14,7 +14,7 @@ type Segmentation struct {
 }
 
 // Put comments in the code will cost from $3000 per month
-func (s *Segmentation) Put(ctx context.Context, db *sqlx.DB) error {
+func (s Segmentation) Put(ctx context.Context, db *sqlx.DB) (Segmentation, error) {
 	row, err := db.NamedQueryContext(ctx, `
 INSERT INTO segment(address_sap_id, adr_segment, segment_id)
 VALUES (:address_sap_id, :adr_segment, :segment_id)	
@@ -23,17 +23,17 @@ ON CONFLICT (address_sap_id)
 	              segment_id = excluded.segment_id
 RETURNING *`, s)
 	if err != nil {
-		return err
+		return s, err
 	}
 	if row.Next() {
-		err = row.StructScan(s)
+		err = row.StructScan(&s)
 	}
 	err2 := row.Close()
 	if err2 != nil {
-		return err2
+		return s, err2
 	}
 	if err != nil {
-		return err
+		return s, err
 	}
-	return row.Err()
+	return s, row.Err()
 }

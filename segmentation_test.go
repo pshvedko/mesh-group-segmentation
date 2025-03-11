@@ -21,9 +21,9 @@ type Object struct {
 	ID int `json:"id"`
 }
 
-func (o Object) Put(context.Context, *sqlx.DB) error {
+func (o Object) Put(context.Context, *sqlx.DB) (Object, error) {
 	_, err := fmt.Print(o)
-	return err
+	return o, err
 }
 
 type Handler struct {
