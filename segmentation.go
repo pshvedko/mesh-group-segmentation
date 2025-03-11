@@ -42,7 +42,7 @@ func NewDriver[T Putter](db *sqlx.DB, loader Loader[T]) (Driver[T], error) {
 }
 
 type Getter[T Putter] interface {
-	Get(context.Context, string, chan<- T) (int, error)
+	Get(context.Context, url.URL, chan<- T) (int, error)
 }
 
 type Decoder[T Putter] func(context.Context, io.Reader, chan<- T) (int, error)
@@ -57,8 +57,8 @@ type Get[T Putter] struct {
 	UserAgent string
 }
 
-func (g *Get[T]) Get(ctx context.Context, URL string, items chan<- T) (int, error) {
-	req, err := g.NewRequestWithContext(ctx, URL)
+func (g *Get[T]) Get(ctx context.Context, URL url.URL, items chan<- T) (int, error) {
+	req, err := g.NewRequestWithContext(ctx, URL.String())
 	if err != nil {
 		return 0, err
 	}
@@ -90,7 +90,7 @@ func NewGetter[T Putter](agent string, timeout time.Duration, decoder Decoder[T]
 }
 
 type Pager interface {
-	Page(int) (string, error)
+	Page(int) (url.URL, error)
 }
 
 type Load[T Putter] struct {
@@ -107,14 +107,14 @@ type Page struct {
 	Start  int
 }
 
-func (p *Page) Page(size int) (string, error) {
+func (p *Page) Page(size int) (url.URL, error) {
 	u := p.URL
 	q := u.Query()
 	q.Set(p.Offset, strconv.Itoa(p.Start))
 	q.Set(p.Limit, strconv.Itoa(size))
 	u.RawQuery = q.Encode()
 	p.Start += size
-	return u.String(), nil
+	return u, nil
 }
 
 func NewPager(URL url.URL, offset string, limit string) Pager {
@@ -127,7 +127,7 @@ func NewPager(URL url.URL, offset string, limit string) Pager {
 }
 
 func (l *Load[T]) Load(ctx context.Context, size int, items chan<- T) (int, error) {
-	page, err := l.Page(size)
+	URL, err := l.Page(size)
 	if err != nil {
 		return 0, err
 	}
@@ -137,7 +137,7 @@ func (l *Load[T]) Load(ctx context.Context, size int, items chan<- T) (int, erro
 	case <-time.After(l.Duration + time.Until(l.Time)):
 		l.Time = time.Now()
 	}
-	return l.Get(ctx, page, items)
+	return l.Get(ctx, URL, items)
 }
 
 func NewLoader[T Putter](interval time.Duration, URL url.URL, offset, limit string, getter Getter[T]) (Loader[T], error) {

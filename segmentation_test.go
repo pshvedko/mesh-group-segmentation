@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/pshvedko/sap_segmentation/internal/stream"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +13,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 
 	"github.com/pshvedko/sap_segmentation/internal/config"
+	"github.com/pshvedko/sap_segmentation/internal/stream"
 )
 
 type Object struct {
@@ -55,38 +54,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(objects)
-}
-
-type G[T Putter] struct {
-	Getter[T]
-}
-
-func (g G[T]) Get(ctx context.Context, URL string, items chan<- T) (int, error) {
-	slog.Info(URL)
-	return g.Getter.Get(ctx, URL, items)
-}
-
-func LogGetter[T Putter](getter Getter[T]) Getter[T] {
-	return G[T]{Getter: getter}
-}
-
-type D[T Putter] struct {
-	Driver[T]
-}
-
-func (d D[T]) Save(ctx context.Context, item T) error {
-	err := d.Driver.Save(ctx, item)
-	switch err {
-	case nil:
-		slog.Info(fmt.Sprintf("%+v", item))
-	default:
-		slog.Error(fmt.Sprintf("%+v", item), "err", err)
-	}
-	return err
-}
-
-func LogDriver[T Putter](driver Driver[T]) Driver[T] {
-	return D[T]{Driver: driver}
 }
 
 func ExampleNewImporter() {

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -40,6 +42,37 @@ const (
 	LogPath      = "log"
 )
 
+type Level struct {
+	p *slog.Level
+}
+
+func (l Level) String() string {
+	return l.p.String()
+}
+
+func (l Level) Set(s string) error {
+	switch strings.ToUpper(s[:1]) {
+	case "E":
+		s = "ERROR"
+	case "W":
+		s = "WARN"
+	case "I":
+		s = "INFO"
+	case "D":
+		s = "DEBUG"
+	}
+	return l.p.UnmarshalText([]byte(s))
+}
+
+func (l Level) Type() string {
+	return "level"
+}
+
+func NewLogLevel(p *slog.Level, v slog.Level) pflag.Value {
+	*p = v
+	return Level{p: p}
+}
+
 func main() {
 	var cfg config.Config
 
@@ -52,17 +85,25 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	var usage bool
+	var level slog.Level
+
 	c := &cobra.Command{
 		Use:  ModulePrefix,
 		Long: "MESH GROUP Golang test assignment",
 		PersistentPreRunE: func(*cobra.Command, []string) error {
-			return prepare(ctx, cfg)
+			return prepare(ctx, cfg, level)
 		},
 		RunE: func(*cobra.Command, []string) error {
+			if usage {
+				return envconfig.Usage(ModulePrefix, &cfg)
+			}
 			return run(ctx, cfg)
 		},
 	}
 
+	c.PersistentFlags().VarP(NewLogLevel(&level, slog.LevelInfo), "level", "l", "level")
+	c.PersistentFlags().BoolVarP(&usage, "usage", "u", false, "usage")
 	c.PersistentFlags().IPVar(&cfg.DB.Host, "host", cfg.DB.Host, "host")
 	c.PersistentFlags().IntVar(&cfg.DB.Port, "port", cfg.DB.Port, "port")
 	c.PersistentFlags().StringVar(&cfg.DB.User, "user", cfg.DB.User, "user")
@@ -140,7 +181,7 @@ func demo(ctx context.Context, addr string) error {
 	return w.ListenAndServe()
 }
 
-func prepare(_ context.Context, cfg config.Config) error {
+func prepare(_ context.Context, cfg config.Config, level slog.Level) error {
 	out, err := logfile.New(LogPath, ModulePrefix, 24*time.Hour*time.Duration(cfg.LogCleanupMaxAge))
 	switch {
 	case err != nil:
@@ -153,6 +194,7 @@ func prepare(_ context.Context, cfg config.Config) error {
 				),
 			),
 		)
+		slog.SetLogLoggerLevel(level)
 	}
 	return err
 }
