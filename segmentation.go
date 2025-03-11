@@ -34,7 +34,7 @@ func (s *Drive[T]) Save(ctx context.Context, item T) error {
 	return item.Put(ctx, s.DB)
 }
 
-func NewDriver[T Putter](loader Loader[T], db *sqlx.DB) (Driver[T], error) {
+func NewDriver[T Putter](db *sqlx.DB, loader Loader[T]) (Driver[T], error) {
 	return &Drive[T]{
 		Loader: loader,
 		DB:     db,
@@ -191,17 +191,17 @@ type Importer[T Putter] interface {
 	Import(context.Context) error
 }
 
-func New[T Putter](driver Driver[T], size int) (Importer[T], error) {
+func New[T Putter](size int, driver Driver[T]) (Importer[T], error) {
 	return &Import[T]{
 		Driver: driver,
 		Size:   size,
 	}, nil
 }
 
-func NewImporter[T Putter](loader Loader[T], db *sqlx.DB, size int) (Importer[T], error) {
-	driver, err := NewDriver(loader, db)
+func NewImporter[T Putter](size int, db *sqlx.DB, loader Loader[T]) (Importer[T], error) {
+	driver, err := NewDriver(db, loader)
 	if err != nil {
 		return nil, nil
 	}
-	return New(driver, size)
+	return New(size, driver)
 }

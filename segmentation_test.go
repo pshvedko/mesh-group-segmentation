@@ -74,10 +74,6 @@ type D[T Putter] struct {
 	Driver[T]
 }
 
-func (d D[T]) Load(ctx context.Context, size int, items chan<- T) (int, error) {
-	return d.Driver.Load(ctx, size, items)
-}
-
 func (d D[T]) Save(ctx context.Context, item T) error {
 	err := d.Driver.Save(ctx, item)
 	switch err {
@@ -122,12 +118,12 @@ func ExampleNewImporter() {
 		return
 	}
 
-	driver, err := NewDriver(loader, &sqlx.DB{})
+	driver, err := NewDriver(&sqlx.DB{}, loader)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	importer, err := New(LogDriver(driver), cfg.ImportBatchSize)
+	importer, err := New(cfg.ImportBatchSize, LogDriver(driver))
 	if err != nil {
 		fmt.Println(err)
 		return

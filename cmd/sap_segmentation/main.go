@@ -174,7 +174,7 @@ func run(ctx context.Context, cfg config.Config) error {
 		return err
 	}
 
-	importer, err := sap_segmentation.NewImporter(loader, db, cfg.ImportBatchSize)
+	importer, err := sap_segmentation.NewImporter(cfg.ImportBatchSize, db, loader)
 	if err != nil {
 		return err
 	}
