@@ -172,7 +172,7 @@ func demo(ctx context.Context, addr string, size int) error {
 		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
 	// Make sure the program doesn't exit and waits instead for Shutdown to return.
-	g := sync.WaitGroup{}
+	var g sync.WaitGroup
 	defer g.Wait()
 	context.AfterFunc(ctx, func() {
 		g.Add(1)
