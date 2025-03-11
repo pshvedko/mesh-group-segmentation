@@ -57,7 +57,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(objects)
 }
 
-type G[T Item] struct {
+type G[T Putter] struct {
 	Getter[T]
 }
 
@@ -66,11 +66,11 @@ func (g G[T]) Get(ctx context.Context, URL string, items chan<- T) (int, error) 
 	return g.Getter.Get(ctx, URL, items)
 }
 
-func LogGetter[T Item](getter Getter[T]) Getter[T] {
+func LogGetter[T Putter](getter Getter[T]) Getter[T] {
 	return G[T]{Getter: getter}
 }
 
-type D[T Item] struct {
+type D[T Putter] struct {
 	Driver[T]
 }
 
@@ -89,7 +89,7 @@ func (d D[T]) Save(ctx context.Context, item T) error {
 	return err
 }
 
-func LogDriver[T Item](driver Driver[T]) Driver[T] {
+func LogDriver[T Putter](driver Driver[T]) Driver[T] {
 	return D[T]{Driver: driver}
 }
 

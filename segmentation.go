@@ -12,20 +12,20 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-type Item interface {
+type Putter interface {
 	Put(context.Context, *sqlx.DB) error
 }
 
-type Loader[T Item] interface {
+type Loader[T Putter] interface {
 	Load(context.Context, int, chan<- T) (int, error)
 }
 
-type Driver[T Item] interface {
+type Driver[T Putter] interface {
 	Loader[T]
 	Save(context.Context, T) error
 }
 
-type Drive[T Item] struct {
+type Drive[T Putter] struct {
 	Loader[T]
 	*sqlx.DB
 }
@@ -34,24 +34,24 @@ func (s *Drive[T]) Save(ctx context.Context, item T) error {
 	return item.Put(ctx, s.DB)
 }
 
-func NewDriver[T Item](loader Loader[T], db *sqlx.DB) (Driver[T], error) {
+func NewDriver[T Putter](loader Loader[T], db *sqlx.DB) (Driver[T], error) {
 	return &Drive[T]{
 		Loader: loader,
 		DB:     db,
 	}, nil
 }
 
-type Getter[T Item] interface {
+type Getter[T Putter] interface {
 	Get(context.Context, string, chan<- T) (int, error)
 }
 
-type Decoder[T Item] func(context.Context, io.Reader, chan<- T) (int, error)
+type Decoder[T Putter] func(context.Context, io.Reader, chan<- T) (int, error)
 
 func (f Decoder[T]) Decode(ctx context.Context, r io.Reader, c chan<- T) (int, error) {
 	return f(ctx, r, c)
 }
 
-type Get[T Item] struct {
+type Get[T Putter] struct {
 	Decoder[T]
 	http.Client
 	UserAgent string
@@ -81,7 +81,7 @@ func (g *Get[T]) NewRequestWithContext(ctx context.Context, URL string) (*http.R
 
 }
 
-func NewGetter[T Item](agent string, timeout time.Duration, decoder Decoder[T]) (Getter[T], error) {
+func NewGetter[T Putter](agent string, timeout time.Duration, decoder Decoder[T]) (Getter[T], error) {
 	return &Get[T]{
 		Client:    http.Client{Timeout: timeout},
 		Decoder:   decoder,
@@ -93,7 +93,7 @@ type Pager interface {
 	Page(int) (string, error)
 }
 
-type Load[T Item] struct {
+type Load[T Putter] struct {
 	Getter[T]
 	time.Duration
 	time.Time
@@ -140,7 +140,7 @@ func (l *Load[T]) Load(ctx context.Context, size int, items chan<- T) (int, erro
 	return l.Get(ctx, page, items)
 }
 
-func NewLoader[T Item](interval time.Duration, URL url.URL, offset, limit string, getter Getter[T]) (Loader[T], error) {
+func NewLoader[T Putter](interval time.Duration, URL url.URL, offset, limit string, getter Getter[T]) (Loader[T], error) {
 	return &Load[T]{
 		Pager:    NewPager(URL, offset, limit),
 		Getter:   getter,
@@ -148,7 +148,7 @@ func NewLoader[T Item](interval time.Duration, URL url.URL, offset, limit string
 	}, nil
 }
 
-type Import[T Item] struct {
+type Import[T Putter] struct {
 	Driver[T]
 	Size int
 }
@@ -187,18 +187,18 @@ func (i *Import[T]) Import(ctx context.Context) error {
 	return <-e
 }
 
-type Importer[T Item] interface {
+type Importer[T Putter] interface {
 	Import(context.Context) error
 }
 
-func New[T Item](driver Driver[T], size int) (Importer[T], error) {
+func New[T Putter](driver Driver[T], size int) (Importer[T], error) {
 	return &Import[T]{
 		Driver: driver,
 		Size:   size,
 	}, nil
 }
 
-func NewImporter[T Item](loader Loader[T], db *sqlx.DB, size int) (Importer[T], error) {
+func NewImporter[T Putter](loader Loader[T], db *sqlx.DB, size int) (Importer[T], error) {
 	driver, err := NewDriver(loader, db)
 	if err != nil {
 		return nil, nil
