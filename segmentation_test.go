@@ -31,7 +31,7 @@ func ExampleNewImporter() {
 
 	_ = os.Setenv("TEST_CONN_URI", s.URL)
 	_ = os.Setenv("TEST_CONN_AUTH_LOGIN_PWD", "1:1")
-	_ = os.Setenv("TEST_CONN_INTERVAL", "50ms")
+	_ = os.Setenv("TEST_CONN_INTERVAL", "500ms")
 	_ = os.Setenv("TEST_IMPORT_BATCH_SIZE", "8")
 
 	slog.SetLogLoggerLevel(slog.LevelDebug)

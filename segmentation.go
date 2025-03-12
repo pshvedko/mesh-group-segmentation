@@ -148,10 +148,9 @@ func (l *Load[T]) Load(ctx context.Context, size int, items chan<- T) (int, erro
 	select {
 	case <-ctx.Done():
 		return 0, ctx.Err()
-	case <-time.After(l.Duration + time.Until(l.Time)):
-		l.Time = time.Now()
+	case l.Time = <-time.After(l.Duration + time.Until(l.Time)):
+		return l.Get(ctx, URL, items)
 	}
-	return l.Get(ctx, URL, items)
 }
 
 func NewLoader[T Putter[T]](interval time.Duration, URL url.URL, offset, limit string, getter Getter[T]) (Loader[T], error) {

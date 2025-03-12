@@ -69,7 +69,7 @@ func TestSegmentation_Put(t *testing.T) {
 				AdrSegment:   tt.fields.AdrSegment,
 				SegmentId:    tt.fields.SegmentId,
 			}
-			if err := s.Put(ctx, db); (err != nil) != tt.wantErr {
+			if _, err := s.Put(ctx, db); (err != nil) != tt.wantErr {
 				t.Errorf("Put() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
