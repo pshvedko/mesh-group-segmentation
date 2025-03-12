@@ -18,7 +18,6 @@ func (g G[T]) Get(ctx context.Context, URL url.URL, items chan<- T) (int, error)
 		slog.Info(URL.Redacted(), "count", n)
 	default:
 		slog.Error(URL.Redacted(), "count", n, "err", err)
-
 	}
 	return n, err
 }
