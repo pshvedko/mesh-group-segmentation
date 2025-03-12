@@ -12,8 +12,15 @@ type G[T Putter[T]] struct {
 }
 
 func (g G[T]) Get(ctx context.Context, URL url.URL, items chan<- T) (int, error) {
-	slog.Info(URL.Redacted())
-	return g.Getter.Get(ctx, URL, items)
+	n, err := g.Getter.Get(ctx, URL, items)
+	switch err {
+	case nil:
+		slog.Info(URL.Redacted(), "count", n)
+	default:
+		slog.Error(URL.Redacted(), "count", n, "err", err)
+
+	}
+	return n, err
 }
 
 func LogGetter[T Putter[T]](getter Getter[T]) Getter[T] {
