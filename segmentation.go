@@ -264,7 +264,7 @@ func New[T Putter[T]](size int, driver Driver[T]) (Importer[T], error) {
 func NewImporter[T Putter[T]](size int, db *sqlx.DB, loader Loader[T]) (Importer[T], error) {
 	driver, err := NewDriver(db, loader)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 	return New(size, driver)
 }
