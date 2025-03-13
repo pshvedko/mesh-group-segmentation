@@ -165,9 +165,15 @@ type Options struct {
 	Size int
 }
 
-type Option func(*Options)
+type OptionFunc func(*Options)
 
-func WithBufferSize(size int) Option {
+func (f OptionFunc) Apply(o *Options) { f(o) }
+
+type Option interface {
+	Apply(options *Options)
+}
+
+func WithBufferSize(size int) OptionFunc {
 	return func(o *Options) {
 		o.Size = size
 	}
@@ -212,7 +218,7 @@ func (i *Import[T]) UseDriver(wrappers ...func(Driver[T]) Driver[T]) {
 func (i *Import[T]) Import(ctx context.Context, options ...Option) error {
 	var o Options
 	for _, option := range options {
-		option(&o)
+		option.Apply(&o)
 	}
 
 	c := make(chan T, o.Size)
