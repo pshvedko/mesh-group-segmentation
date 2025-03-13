@@ -161,9 +161,20 @@ func NewLoader[T Putter[T]](interval time.Duration, URL url.URL, offset, limit s
 	}, nil
 }
 
+type Options struct {
+	Size int
+}
+
+type Option func(*Options)
+
+func WithBufferSize(size int) Option {
+	return func(o *Options) {
+		o.Size = size
+	}
+}
+
 type Importer[T Putter[T]] interface {
-	Import(context.Context) error
-	ImportWithBuffer(context.Context, int) error
+	Import(context.Context, ...Option) error
 	WithLoader(...func(Loader[T]) Loader[T]) Importer[T]
 	WithDriver(...func(Driver[T]) Driver[T]) Importer[T]
 	WithGetter(...func(Getter[T]) Getter[T]) Importer[T]
@@ -198,12 +209,13 @@ func (i *Import[T]) UseDriver(wrappers ...func(Driver[T]) Driver[T]) {
 	}
 }
 
-func (i *Import[T]) Import(ctx context.Context) error {
-	return i.ImportWithBuffer(ctx, 0)
-}
+func (i *Import[T]) Import(ctx context.Context, options ...Option) error {
+	var o Options
+	for _, option := range options {
+		option(&o)
+	}
 
-func (i *Import[T]) ImportWithBuffer(ctx context.Context, length int) error {
-	c := make(chan T, length)
+	c := make(chan T, o.Size)
 	e := make(chan error, 1)
 
 	defer func() {

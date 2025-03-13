@@ -208,7 +208,8 @@ func run(ctx context.Context, cfg config.Config) error {
 	return importer.
 		WithGetter(sap_segmentation.LogGetter[model.Segmentation]).
 		WithDriver(sap_segmentation.LogDriver[model.Segmentation]).
-		ImportWithBuffer(ctx, cfg.ImportBatchSize)
+		Import(ctx,
+			sap_segmentation.WithBufferSize(cfg.ImportBatchSize))
 }
 
 //go:embed migration
